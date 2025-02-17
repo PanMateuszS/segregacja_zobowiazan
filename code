@@ -1,0 +1,104 @@
+const interval = setInterval(function() {
+    // Wybieramy wszystkie elementy zobowiązań z klasą 'lms-ui-tab-table-row light' oraz 'lms-ui-tab-table-row lucid'
+    const obligations = document.querySelectorAll('.lms-ui-tab-table-row.light, .lms-ui-tab-table-row.lucid');
+    
+    // Sprawdzamy, czy istnieją jakiekolwiek elementy zobowiązań
+    if (obligations.length > 0) {
+        clearInterval(interval);  // Zatrzymujemy sprawdzanie, gdy znajdziemy zobowiązania
+        
+        // Obiekt do grupowania zobowiązań według numeru umowy
+        const groupedObligations = {};
+
+        // Grupowanie zobowiązań na podstawie numeru umowy
+        obligations.forEach(obligation => {
+            // Wydobywamy numer umowy z atrybutu data-document
+            const documentData = obligation.getAttribute('data-document');
+            const agreementNumber = documentData.match(/umowa nr ([^ ]+)/)[1]; // Wyciągamy numer umowy
+
+            // Jeśli jeszcze nie ma takiej grupy, tworzymy ją
+            if (!groupedObligations[agreementNumber]) {
+                groupedObligations[agreementNumber] = {
+                    obligations: [],
+                    totalGrossValue: 0
+                };
+            }
+
+            // Wydobywamy wartość z atrybutu 'data-gross-disc-value'
+            const grossDiscValue = obligation.getAttribute('data-gross-disc-value');
+            
+            // Obliczamy wartość brutto
+            let grossValue = 0;
+            if (grossDiscValue && grossDiscValue !== "0") {
+                grossValue = parseFloat(grossDiscValue.replace(',', '.') || '0');
+            } else {
+                // Jeśli 'data-gross-disc-value' jest puste lub równe '0', bierzemy wartość z .gross do obliczeń
+                grossValue = parseFloat(obligation.querySelector('.gross')?.textContent.replace(' PLN', '').replace(',', '.') || '0');
+            }
+            
+            // Dodajemy zobowiązanie do odpowiedniej grupy
+            groupedObligations[agreementNumber].obligations.push(obligation);
+
+            // Jeśli 'data-gross-disc-value' nie jest "0", dodajemy wartość brutto do sumy
+            if (grossDiscValue !== "0") {
+                groupedObligations[agreementNumber].totalGrossValue += grossValue;
+            }
+        });
+
+        // Pobieramy kontener o klasie 'lms-ui-tab-contents lms-ui-multi-check assignmentpanel'
+        const contentsContainer = document.querySelector('.lms-ui-tab-contents.lms-ui-multi-check.assignmentpanel');
+        
+        if (contentsContainer) {
+            // Pobieramy element z klasą 'lms-ui-tab-table-row header' w obrębie 'contentsContainer'
+            const headerRow = contentsContainer.querySelector('.lms-ui-tab-table-row.header');
+            
+            if (headerRow) {
+                // Tworzymy nowy kontener, który ma być dodany **po** elemencie 'headerRow'
+                const customerAssignmentsContainer = document.createElement('div');
+                customerAssignmentsContainer.id = 'customerassignments';  // Możemy przypisać id, jeśli nie ma go w HTML
+
+                // Tworzymy nowe kontenery dla każdej grupy zobowiązań
+                for (const [agreementNumber, data] of Object.entries(groupedObligations)) {
+                    const obligations = data.obligations;
+                    const totalGrossValue = data.totalGrossValue;
+
+                    // Tworzymy nowy kontener dla grupy zobowiązań
+                    const newContainer = document.createElement('div');
+                    newContainer.classList.add('obowiazanie-container');
+                    newContainer.setAttribute('data-agreement-number', agreementNumber);
+
+                    // Dodajemy nagłówek z numerem umowy i wartością brutto
+                    const header = document.createElement('h3');
+                    header.textContent = `Umowa nr ${agreementNumber} - Wartość brutto: ${totalGrossValue.toFixed(2)} PLN`;
+                    newContainer.appendChild(header);
+
+                    // Dodajemy wszystkie zobowiązania do nowego kontenera (także te z 'data-gross-disc-value="0"')
+                    obligations.forEach(obligation => {
+                        // Dodajemy każdą pozycję zobowiązania, ale ustawiamy jej styl display na 'none' (zwinięte)
+                        obligation.style.display = 'none';
+                        newContainer.appendChild(obligation);
+                    });
+
+                    // Dodajemy nowy kontener do kontenera 'customerassignments'
+                    customerAssignmentsContainer.appendChild(newContainer);
+
+                    // Dodajemy funkcję rozwijania/pokazywania szczegółów po kliknięciu na kontener
+                    newContainer.addEventListener('click', function() {
+                        const content = newContainer.querySelectorAll('.lms-ui-tab-table-row.light, .lms-ui-tab-table-row.lucid');
+                        content.forEach(item => {
+                            // Zmieniamy widoczność elementów na przeciwną (toggle)
+                            item.style.display = item.style.display === 'none' ? '' : 'none';
+                        });
+                    });
+                }
+
+                // Dodajemy kontener **po** kontenerze 'headerRow'
+                headerRow.insertAdjacentElement('afterend', customerAssignmentsContainer);
+
+            } else {
+                console.error('Element o klasie "lms-ui-tab-table-row header" nie został znaleziony w kontenerze "lms-ui-tab-contents lms-ui-multi-check assignmentpanel"!');
+            }
+        } else {
+            console.error('Kontener o klasie "lms-ui-tab-contents lms-ui-multi-check assignmentpanel" nie został znaleziony!');
+        }
+    }
+}, 500);  // Co 500ms sprawdzamy, czy elementy są już dostępne
